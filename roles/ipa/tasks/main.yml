@@ -1,2 +1,56 @@
 ---
 # tasks file for ipa
+
+- name: Enable epel-release repo
+  yum:
+    name: epel-release
+    state: present
+    update_cache: true
+  become: true
+
+- name: Set timezone to Europe/Berlin
+  timezone:
+    name: Europe/Berlin
+
+- name: change hostname
+  hostname:
+    name: "{{ hostname }}"
+
+- name: Copy hosts file
+  template:
+     src: templates/hosts.j2
+     dest: /etc/hosts
+     owner: root
+     group: root
+     mode: 0644 # stat -c %a interfaces
+
+- name: Set authorized key
+  authorized_key:
+    user: root
+    state: present
+    key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+
+
+- name: Upgrade all packages
+  yum:
+    name: '*'
+    state: latest
+
+- name: Enable repo and install freeipa-server
+  yum:
+    name: "{{ packages }}"
+  vars:
+    packages:
+    - "@idm:DL1"
+    - "freeipa-server"
+
+- name: Open ports for freeipa
+  firewalld:
+    zone: public
+    service: "{{ item }}"
+    permanent: yes
+    state: enabled
+    immediate: yes
+  loop:
+    - freeipa-ldap
+    - freeipa-ldaps

@@ -1,0 +1,11 @@
+
+- name: Setup IPA server
+  hosts: 95.217.199.7
+  user: root
+  become: true
+
+  roles:
+    - role: ipa
+      ipv4_address: 95.217.199.7
+      hostname: ipa
+      full_domain: ipa.0x61.eu
