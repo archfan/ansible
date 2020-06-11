@@ -1,0 +1,33 @@
+# interfaces(5) file used by ifup(8) and ifdown(8)
+# Include files from /etc/network/interfaces.d:
+source-directory /etc/network/interfaces.d
+
+auto lo
+iface lo inet loopback
+
+auto vmbr0
+iface vmbr0 inet static
+  address {{ ipv4_address }} 
+  netmask 255.255.255.255
+  pointopoint {{ gateway }}
+  gateway {{ gateway }}
+  bridge_ports eth0
+  bridge_stp off
+  bridge_fd 1
+  bridge_hello 2
+  bridge_maxage 12
+
+iface vmbr0 inet6 static
+  address {{ ipv6_address }}
+  netmask 128
+  gateway fe80::1
+  bridge_ports eth0
+  bridge_stp off
+  bridge_maxage 12
+
+#LAN1 Netzwerk
+auto vmbr1
+iface vmbr1 inet manual
+  bridge-ports none
+  bridge-stp off
+  bridge-fd 0

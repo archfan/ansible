@@ -1,0 +1,7 @@
+#!/bin/sh
+
+/usr/bin/certbot renew >> /var/log/le-renew.log
+cp etc/letsencrypt/live/{{ full_domain }}/privkey.pem /etc/pve/local/pveproxy-ssl.key
+cp /etc/letsencrypt/live/{{ full_domain }}/fullchain.pem /etc/pve/local/pveproxy-ssl.pem 
+systemctl restart pveproxy
+systemctl restart pvedaemon

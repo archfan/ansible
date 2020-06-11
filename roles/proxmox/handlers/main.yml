@@ -1,0 +1,15 @@
+---
+# handlers file for proxmox
+
+- name: Restart Network
+  service:
+     name: networking
+     state: restarted
+
+- name: Restart pve
+  service:
+    name: "{{ item }}"
+    state: restarted
+  with_items:
+    - pveproxy
+    - pvedaemon

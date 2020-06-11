@@ -1,0 +1,94 @@
+---
+# tasks file for proxmox
+
+- name: import proxmox key
+  apt_key:
+    url: http://download.proxmox.com/debian/proxmox-ve-release-6.x.gpg
+    state: present
+
+- name: Remove pve enterprise repository
+  apt_repository:
+    repo: deb https://enterprise.proxmox.com/debian/pve buster pve-enterprise
+    state: absent
+    filename: pve-enterprise.list
+
+- name: Add proxmox repository 
+  apt_repository:
+    repo: deb http://download.proxmox.com/debian/pve buster pve-no-subscription
+    state: present
+    filename: pve-install-repo.list
+
+- name: Update and upgrade apt packages
+  apt:
+    upgrade: yes
+    update_cache: yes
+
+- name: Purge unneeded packages
+  apt:
+    pkg:
+      - firmware-bnx2x
+      - firmware-realtek
+      - firmware-linux
+      - firmware-linux-free
+      - firmware-linux-nonfree
+    state: absent
+
+- name: copy hosts file
+  template:
+     src: templates/hosts.j2
+     dest: /etc/hosts
+     owner: root
+     group: root
+     mode: 0644 # stat -c %a interfaces
+
+- name: copy hostname file
+  template:
+     src: templates/hostname.j2
+     dest: /etc/hostname
+     owner: root
+     group: root
+     mode: 0644 # stat -c %a interfaces
+
+- name: Install proxmox-ve and certbot
+  apt:
+    pkg: 
+      - proxmox-ve
+      - certbot
+    state: present
+
+- name: copy interfaces file
+  template:
+     src: templates/interfaces.j2
+     dest: /etc/network/interfaces
+     owner: root
+     group: root
+     mode: '0644' # stat -c %a interfaces
+  notify: Restart Network
+
+- name: Check if cert already exists
+  stat: 
+    path: /etc/letsencrypt/live/{{ full_domain }}/privkey.pem
+  register: result
+
+- name: Obtain LE SSL cert
+  shell: certbot certonly -n -d {{ full_domain }} --agree-tos -m {{ email }} --standalone
+  when: result.stat.exists == false
+
+- name: Copy SSL cert
+  copy: src=/etc/letsencrypt/live/{{ full_domain }}/privkey.pem dest=/etc/pve/local/pveproxy-ssl.key remote_src=yes
+  copy: src=/etc/letsencrypt/live/{{ full_domain }}/fullchain.pem dest=/etc/pve/local/pveproxy-ssl.pem remote_src=yes
+  notify: Restart pve
+
+- name: copy ssl script
+  template:
+     src: templates/renew_cert.sh.j2
+     dest: /usr/local/bin/renew_cert.sh
+     owner: root
+     group: root
+     mode: 0755
+
+- name: Create monthly entry
+  cron:
+    name: "monthly cert renewal"
+    special_time: monthly
+    job: "/usr/local/bin/renew_cert.sh"

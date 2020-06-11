@@ -1,0 +1,12 @@
+- name: Setup proxmox defaults
+  hosts: larissa.0x61.eu
+  user: root
+  become: true
+
+  roles:
+    - role: proxmox
+      ipv4_address: 95.217.199.30
+      gateway: 95.217.199.1
+      ipv6_address: 2a01:4f9:4a:42a0::1
+      hostname: larissa
+      full_domain: larissa.0x61.eu
