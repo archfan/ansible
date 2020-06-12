@@ -57,6 +57,6 @@
 
 
 - name: Setup IPA freeipa-server
-  shell: ipa-server-install -a {{ admin_pass }} --hostname={{ full_domain|lower }} -r {{ realm|upper }} -p {{ dm_pass }} -n {{ realm }} -U
+  shell: ipa-server-install -a {{ admin_pass }} --hostname={{ full_domain|lower }} -r {{ realm|upper }} -p {{ dm_pass }} -n {{ realm }} -U && mv /tmp/ipa.system.records.*.db /root/ipa.dns.settings.do_not_remove
   args:
-    creates: /tmp/ipa.system.records.*.db
+    creates: /root/ipa.dns.settings.do_not_remove
