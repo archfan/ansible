@@ -54,6 +54,7 @@
   loop:
     - freeipa-ldap
     - freeipa-ldaps
+    - dns
 
 
 - name: Setup IPA freeipa-server
