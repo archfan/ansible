@@ -54,3 +54,9 @@
   loop:
     - freeipa-ldap
     - freeipa-ldaps
+
+
+- name: Setup IPA freeipa-server
+  shell: ipa-server-install -a {{ admin_pass }} --hostname={{ full_domain|lower }} -r {{ realm|upper }} -p {{ dm_pass }} -n {{ realm }} -U
+  args:
+    creates: /tmp/ipa.system.records.*.db
