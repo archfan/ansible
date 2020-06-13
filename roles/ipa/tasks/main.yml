@@ -43,6 +43,9 @@
     packages:
     - "@idm:DL1"
     - "freeipa-server"
+    - "certbot"
+    - "git"
+    - "python3-pexpect"
 
 - name: Open ports for freeipa
   firewalld:
@@ -58,6 +61,62 @@
 
 
 - name: Setup IPA freeipa-server
-  shell: ipa-server-install -a {{ admin_pass }} --hostname={{ full_domain|lower }} -r {{ realm|upper }} -p {{ dm_pass }} -n {{ realm }} -U && mv /tmp/ipa.system.records.*.db /root/ipa.dns.settings.do_not_remove
+  shell: ipa-server-install -a "{{ admin_pass }}" --hostname="{{ full_domain|lower }}" --mkhomedir -r "{{ realm|upper }}" -p "{{ dm_pass }}" -n "{{ realm }}" -U
   args:
-    creates: /root/ipa.dns.settings.do_not_remove
+    creates: /tmp/ipa.system.records.*.db
+
+
+- name: Create IPA user account
+  ipa_user:
+    name: "{{ ipa_username }}"
+    state: present
+    givenname: "{{ ipa_firstname }}"
+    sn: "{{ ipa_surname }}"
+    mail: "{{ email_address }}"
+    update_password: on_create
+    password: "{{ ipa_userpassword }}"
+    sshpubkey:
+    - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDbg7BKCF+92/Ri8joXx9TVrUoiireQiCjwm5DR1ot2o69sHs+o0rLVwcdf7BV23ZCkAvqnzkdgLZq4O3+atppZ89RURj6LBICMuLUsgQKtskamUbJaeLjgfEFk1+u8x4uK9DXThmOCXRHWZrmYZv/0aCmPKlldrIx8xnI9R2BnG2EJyYgvKv4C4syCNy7b88vgXP/CykjhzviNJghcJsuzjerwG6Ixvdi5dZb7hPm7YstXhxY6EcRCqMz6kRkL9lfU6zgq/z3l/ipGLe0A0F5N57KAm3iStPE6R/189cOwXan+qCz+D56TgRRgws9MxtHX3R71EkFdulyO6qT6xzZL merkel@mussweg
+    uidnumber: 1001
+    gidnumber: 100
+    ipa_host: "{{ full_domain }}"
+    ipa_user: admin
+    ipa_pass: "{{ admin_pass }}"
+
+
+- name: Clone freeipa-letsencrypt 
+  git:
+    repo: 'https://github.com/freeipa/freeipa-letsencrypt.git'
+    dest: /srv/freeipa-letsencrypt
+    version: master
+    update: no
+
+- lineinfile:
+    path: /srv/freeipa-letsencrypt/ipa-httpd.cnf
+    regexp: '^FQDN ='
+    line: 'FQDN = {{ full_domain }}'
+
+- lineinfile:
+    path: /srv/freeipa-letsencrypt/renew-le.sh
+    regexp: '^EMAIL='
+    line: 'EMAIL="{{ email_address }}"'
+
+- shell: cat "/var/lib/ipa/passwds/{{ full_domain }}-443-RSA"
+  register: httpd_data
+  no_log: yes
+
+- name: Setup letsencrypt for the IPA frontend
+  expect:
+    echo: yes
+    command: /bin/bash /srv/freeipa-letsencrypt/setup-le.sh
+    timeout: 500
+    responses:
+      (.*)Enter pass phrase for /var/lib/ipa/private/httpd.key:(.*): "{{ httpd_data.stdout }}"
+    args:
+    creates: /srv/freeipa-letsencrypt/0000_cert.pem
+
+- name: Create a cronjob for letsencrypt
+  cron:
+    name: "cronjob for letsencrypt"
+    special_time: monthly
+    job: "/srv/freeipa-letsencrypt/renew-le.sh"
