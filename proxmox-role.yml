@@ -4,6 +4,7 @@
   become: true
 
   roles:
+    - role: common
     - role: proxmox
       ipv4_address: 95.217.199.30
       gateway: 95.217.199.1

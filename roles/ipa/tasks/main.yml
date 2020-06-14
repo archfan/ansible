@@ -1,41 +1,6 @@
 ---
 # tasks file for ipa
 
-- name: Enable epel-release repo
-  yum:
-    name: epel-release
-    state: present
-    update_cache: true
-  become: true
-
-- name: Set timezone to Europe/Berlin
-  timezone:
-    name: Europe/Berlin
-
-- name: change hostname
-  hostname:
-    name: "{{ hostname }}"
-
-- name: Copy hosts file
-  template:
-     src: templates/hosts.j2
-     dest: /etc/hosts
-     owner: root
-     group: root
-     mode: 0644 # stat -c %a interfaces
-
-- name: Set authorized key
-  authorized_key:
-    user: root
-    state: present
-    key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
-
-
-- name: Upgrade all packages
-  yum:
-    name: '*'
-    state: latest
-
 - name: Enable repo and install freeipa-server
   yum:
     name: "{{ packages }}"
@@ -105,15 +70,13 @@
   register: httpd_data
   no_log: yes
 
-- name: Setup letsencrypt for the IPA frontend
-  expect:
-    echo: yes
-    command: /bin/bash /srv/freeipa-letsencrypt/setup-le.sh
-    timeout: 500
-    responses:
-      (.*)Enter pass phrase for /var/lib/ipa/private/httpd.key:(.*): "{{ httpd_data.stdout }}"
-    args:
-    creates: /srv/freeipa-letsencrypt/0000_cert.pem
+- name: check if LE cert already exists
+  stat: 
+    path: /srv/freeipa-letsencrypt/0000_chain.pem
+  register: le_exists
+
+- include_tasks: install_le.yml
+  when: not le_exists
 
 - name: Create a cronjob for letsencrypt
   cron:

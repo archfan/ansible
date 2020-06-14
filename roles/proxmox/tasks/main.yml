@@ -18,11 +18,6 @@
     state: present
     filename: pve-install-repo.list
 
-- name: Update and upgrade apt packages
-  apt:
-    upgrade: yes
-    update_cache: yes
-
 - name: Purge unneeded packages
   apt:
     pkg:
@@ -32,22 +27,6 @@
       - firmware-linux-free
       - firmware-linux-nonfree
     state: absent
-
-- name: copy hosts file
-  template:
-     src: templates/hosts.j2
-     dest: /etc/hosts
-     owner: root
-     group: root
-     mode: 0644 # stat -c %a interfaces
-
-- name: copy hostname file
-  template:
-     src: templates/hostname.j2
-     dest: /etc/hostname
-     owner: root
-     group: root
-     mode: 0644 # stat -c %a interfaces
 
 - name: Install proxmox-ve and certbot
   apt:

@@ -7,6 +7,7 @@
   - passwords.yml
 
   roles:
+    - role: common
     - role: ipa
       ipv4_address: 95.217.199.7
       hostname: ipa

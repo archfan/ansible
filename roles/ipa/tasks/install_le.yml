@@ -1,0 +1,10 @@
+---
+# tasks file for ipa
+
+- name: Setup letsencrypt for the IPA frontend
+  expect:
+    echo: yes
+    command: /bin/bash /srv/freeipa-letsencrypt/setup-le.sh
+    timeout: 500
+    responses:
+      (.*)Enter pass phrase for /var/lib/ipa/private/httpd.key:(.*): "{{ httpd_data.stdout }}"

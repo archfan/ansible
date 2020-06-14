@@ -1,0 +1,45 @@
+---
+# tasks file for common
+
+- name: Enable epel-release repo
+  yum:
+    name: epel-release
+    state: present
+    update_cache: true
+  become: true
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
+- name: Set timezone to Europe/Berlin
+  timezone:
+    name: Europe/Berlin
+
+- name: change hostname
+  hostname:
+    name: "{{ hostname }}"
+
+- name: Copy hosts file
+  template:
+     src: templates/hosts.j2
+     dest: /etc/hosts
+     owner: root
+     group: root
+     mode: 0644 # stat -c %a interfaces
+
+- name: Set authorized key
+  authorized_key:
+    user: root
+    state: present
+    key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+
+
+- name: Upgrade all packages
+  yum:
+    name: '*'
+    state: latest
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
+- name: Update and upgrade apt packages
+  apt:
+    upgrade: yes
+    update_cache: yes
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
