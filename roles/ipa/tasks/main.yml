@@ -11,6 +11,7 @@
     - "certbot"
     - "git"
     - "python3-pexpect"
+    - "ansible"
 
 - name: Open ports for freeipa
   firewalld:
@@ -41,6 +42,7 @@
     update_password: on_create
     password: "{{ ipa_userpassword }}"
     sshpubkey:
+    - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDOOjAgCX9xpiwBHhak/GSCkg6/UIVDkhdVaVZq8fHs99yD8YB+nrbsS0UMougqdsu+YKTyCaK8Ix0nUEYHP9vZPi+5uLEk4UOUxldlnvI3M61r2yiEKsWcx15xdW6WyZjy9Q85nzJg8v7AV5N67flNKEex/e2TK1TiIzgGq3yvDmAC/qvW5vd0JAWVOVqemYslUQu6qWNbeN4s6nRPxsxDLCO1oYTIVnwAzBrP0v7AtcWVSg4Dw0bMX71PvxYmeTizOnLThBfYflDivnKdEMKY6RJsD/kxkNGFi5m0TCvRDIuq9/mDPKMPBkljXd8yH1uo9XpgRMgCt5YT9Cr/vkJua9YThbLu3gxqwrMZMTtygTw/Hcu+LEI9cNB7S+zQHZHzCbgTKoNMtkiZPDH4ONFZ5aCVurvFmuWPIO0be7KIptUF+fbKUrRToQ8LlTn00m8BWvTZi6z7WoOLMPJ62N1nCiEcKdTDpBpvplwx4/lyZk7G2wHAeBFNph2kiQmPZdE= merkel@ipa
     - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDbg7BKCF+92/Ri8joXx9TVrUoiireQiCjwm5DR1ot2o69sHs+o0rLVwcdf7BV23ZCkAvqnzkdgLZq4O3+atppZ89RURj6LBICMuLUsgQKtskamUbJaeLjgfEFk1+u8x4uK9DXThmOCXRHWZrmYZv/0aCmPKlldrIx8xnI9R2BnG2EJyYgvKv4C4syCNy7b88vgXP/CykjhzviNJghcJsuzjerwG6Ixvdi5dZb7hPm7YstXhxY6EcRCqMz6kRkL9lfU6zgq/z3l/ipGLe0A0F5N57KAm3iStPE6R/189cOwXan+qCz+D56TgRRgws9MxtHX3R71EkFdulyO6qT6xzZL merkel@mussweg
     uidnumber: 1001
     gidnumber: 100
@@ -83,3 +85,29 @@
     name: "cronjob for letsencrypt"
     special_time: monthly
     job: "/srv/freeipa-letsencrypt/renew-le.sh"
+
+- name: Clone ansible-freeipa
+  git:
+    repo: 'https://github.com/freeipa/ansible-freeipa.git'
+    dest: /srv/ansible-freeipa
+    version: 3487efcf9fb8163a5e2ed5df20fed271170d8d90
+    update: no
+
+- name: Copy ansible.cfg
+  copy:
+    src: files/ansible.cfg
+    dest: /root/.ansible.cfg
+    owner: root
+    group: root
+
+- ipa_sudorule:
+    name: sudo_all_nopasswd
+    cmdcategory: all
+    description: Allow to run every command with sudo without password
+    hostcategory: all
+    sudoopt:
+    - '!authenticate'
+    ipa_host: "{{ full_domain }}"
+    ipa_user: admin
+    ipa_pass: "{{ admin_pass }}"
+    user: "{{ ipa_username }}"
