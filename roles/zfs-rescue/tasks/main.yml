@@ -1,0 +1,99 @@
+---
+# tasks file for zfs-rescue
+
+- name: Enable repos
+  apt_repository:
+    repo: "{{ item }}"
+    state: present
+    update_cache: yes
+  loop:
+    - deb http://deb.debian.org/debian "{{ osrelease }}" main contrib
+    - deb-src http://deb.debian.org/debian "{{ osrelease }}" main contrib
+
+- name: Install packages
+  apt:
+    pkg:
+    - "debootstrap"
+    - "gdisk"
+    - "dkms"
+    - "dpkg-dev"
+    - "parted"
+
+- name: Install zfs-dkms
+  apt:
+    name: "zfs-dkms"
+    state: present
+    install_recommends: no
+    default_release: "{{ osreleasebp }}"
+
+- name: Add the zfs module
+  modprobe:
+    name: zfs
+    state: present
+
+- name: Install zfsutils-linux
+  apt:
+    name: "zfsutils-linux"
+    state: present
+    default_release: "{{ osreleasebp }}"
+
+
+# Example on how to read info and reuse it in subsequent task
+- name: Read device information 
+  parted: device=/dev/"{{ drive1 }}" unit=MiB
+  register: drive1_info
+
+- name: Read device information 
+  parted: device=/dev/"{{ drive2 }}" unit=MiB
+  register: drive2_info
+
+- name: Remove all partitions from disk
+  parted:
+    device: /dev/"{{ drive1 }}"
+    number: '{{ item.num }}'
+    state: absent
+  loop: '{{ drive1_info.partitions }}'
+
+- name: Remove all partitions from disk
+  parted:
+    device: /dev/"{{ drive2 }}"
+    number: '{{ item.num }}'
+    state: absent
+  loop: '{{ drive2_info.partitions }}'
+
+- name: Create a BIOS partition
+  parted:
+    device: "{{ item }}"
+    number: '1'
+    state: present
+    part_start: 23.5KiB
+    part_end: 1047KiB
+    label: gpt
+    flags: bios_grub
+  loop:
+    - /dev/"{{ drive1 }}"
+    - /dev/"{{ drive2 }}"
+
+- name: Create a BOOT partition
+  parted:
+    device: "{{ item }}"
+    number: '2'
+    state: present
+    part_start: 1048KiB
+    part_end: 1025MiB
+    label: gpt
+  loop:
+    - /dev/"{{ drive1 }}"
+    - /dev/"{{ drive2 }}"
+
+- name: Create a ROOT partition
+  parted:
+    device: "{{ item }}"
+    number: '3'
+    state: present
+    part_start: 1026MiB
+    part_end: 100%
+    label: gpt
+  loop:
+    - /dev/"{{ drive1 }}"
+    - /dev/"{{ drive2 }}"

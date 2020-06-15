@@ -1,0 +1,7 @@
+- name: Setup zfs via hetzner rescue mode
+  hosts: 95.217.199.30
+  user: root
+  become: true
+
+  roles:
+    - role: zfs-rescue

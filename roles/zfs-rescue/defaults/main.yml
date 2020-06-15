@@ -1,0 +1,7 @@
+---
+# defaults file for zfs-rescue
+
+osrelease: buster
+drive1: nvme0n1
+drive2: nvme1n1
+osreleasebp: buster-backports
