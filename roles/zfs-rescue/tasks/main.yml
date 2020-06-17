@@ -37,7 +37,6 @@
     state: present
     default_release: "{{ osreleasebp }}"
 
-
 # Example on how to read info and reuse it in subsequent task
 - name: Read device information 
   parted: device=/dev/"{{ drive1 }}" unit=MiB
@@ -47,53 +46,110 @@
   parted: device=/dev/"{{ drive2 }}" unit=MiB
   register: drive2_info
 
-- name: Remove all partitions from disk
-  parted:
-    device: /dev/"{{ drive1 }}"
-    number: '{{ item.num }}'
-    state: absent
-  loop: '{{ drive1_info.partitions }}'
+- include_tasks: new_part.yml
+  when: not zfs_partitioned
 
-- name: Remove all partitions from disk
-  parted:
-    device: /dev/"{{ drive2 }}"
-    number: '{{ item.num }}'
-    state: absent
-  loop: '{{ drive2_info.partitions }}'
+- name: System Installation
+  shell: |
+    zfs create -o canmount=off -o mountpoint=none rpool/ROOT
+    zfs create -o canmount=off -o mountpoint=none bpool/BOOT
+    zfs create -o canmount=noauto -o mountpoint=/ rpool/ROOT/debian
+    zfs mount rpool/ROOT/debian
 
-- name: Create a BIOS partition
-  parted:
-    device: "{{ item }}"
-    number: '1'
-    state: present
-    part_start: 23.5KiB
-    part_end: 1047KiB
-    label: gpt
-    flags: bios_grub
-  loop:
-    - /dev/"{{ drive1 }}"
-    - /dev/"{{ drive2 }}"
+    zfs create -o mountpoint=/boot bpool/BOOT/debian
+    zfs mount bpool/BOOT/debian
+    zfs create                                 rpool/home
+    zfs create -o mountpoint=/root             rpool/home/root
+    zfs create -o canmount=off                 rpool/var
+    zfs create -o canmount=off                 rpool/var/lib
+    zfs create                                 rpool/var/log
+    zfs create                                 rpool/var/spool
+    zfs create -o com.sun:auto-snapshot=false  rpool/var/cache
+    zfs create -o com.sun:auto-snapshot=false  rpool/var/tmp
+    chmod 1777 /mnt/var/tmp
+    zfs create -o com.sun:auto-snapshot=false  rpool/tmp
+    chmod 1777 /mnt/tmp
 
-- name: Create a BOOT partition
-  parted:
-    device: "{{ item }}"
-    number: '2'
-    state: present
-    part_start: 1048KiB
-    part_end: 1025MiB
-    label: gpt
-  loop:
-    - /dev/"{{ drive1 }}"
-    - /dev/"{{ drive2 }}"
+    debootstrap buster /mnt --include=locales,dpkg-dev,grub-pc,openssh-server
 
-- name: Create a ROOT partition
-  parted:
-    device: "{{ item }}"
-    number: '3'
-    state: present
-    part_start: 1026MiB
-    part_end: 100%
-    label: gpt
-  loop:
-    - /dev/"{{ drive1 }}"
-    - /dev/"{{ drive2 }}"
+  args:
+    executable: /bin/bash
+
+- name: copy sources.list file
+  template:
+     src: templates/sources.list.j2
+     dest: /mnt/etc/apt/sources.list
+     owner: root
+     group: root
+     mode: '0644' # stat -c %a interfaces
+
+- name: copy backports.list file
+  template:
+     src: templates/backports.list.j2
+     dest: /mnt/etc/apt/sources.list.d/backports.list
+     owner: root
+     group: root
+     mode: '0644' # stat -c %a interfaces
+
+- name: copy zfs file
+  template:
+     src: files/90zfs
+     dest: /mnt/etc/apt/preferences.d/90_zfs
+     owner: root
+     group: root
+     mode: '0644' # stat -c %a interfaces
+
+- name: copy zfs.conf
+  template:
+     src: files/zfs.conf
+     dest: /mnt/etc/dkms/zfs.conf
+     owner: root
+     group: root
+     mode: '0644' # stat -c %a interfaces
+
+- name: copy zfs-import-bpool.service
+  template:
+     src: files/zfs-import-bpool.service
+     dest: /mnt/etc/systemd/system/zfs-import-bpool.service
+     owner: root
+     group: root
+     mode: '0644' # stat -c %a interfaces
+
+- name: enable en_US.UTF-8
+  lineinfile:
+    path: /mnt/etc/locale.gen
+    line: en_US.UTF-8 UTF-8
+    create: yes
+
+- name: set timezone to Europe/Berlin
+  lineinfile:
+    path: /mnt/etc/timezone
+    line: Europe/Berlin
+    create: yes
+
+- name: Add a line to a file if the file does not exist, without passing regexp
+  lineinfile:
+    path: /mnt/etc/default/grub
+    line: "GRUB_CMDLINE_LINUX=\"root=ZFS=rpool/ROOT/debian\""
+
+- name: chroot into the new system
+  shell: |
+    mount --rbind /dev  /mnt/dev
+    mount --rbind /proc /mnt/proc
+    mount --rbind /sys  /mnt/sys
+    chroot /mnt /usr/bin/env bash --login
+    ln -sf /proc/self/mounts /etc/mtab
+    apt update
+
+    dpkg-reconfigure -f noninteractive locales
+    dpkg-reconfigure -f noninteractive tzdata
+    apt install --yes linux-headers-amd64 linux-image-amd64 zfs-initramfs
+    dpkg --purge os-prober
+    systemctl enable zfs-import-bpool.service
+    systemctl enable sshd
+    update-initramfs -c -k all
+    update-grub
+    grub-install /dev/"{{ drive1 }}"
+    grub-install /dev/"{{ drive2 }}"
+  args:
+    executable: /bin/bash

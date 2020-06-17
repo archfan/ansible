@@ -2,6 +2,8 @@
 # defaults file for zfs-rescue
 
 osrelease: buster
+osreleasebp: buster-backports
 drive1: nvme0n1
 drive2: nvme1n1
-osreleasebp: buster-backports
+diskbyid1: nvme-KXG60ZNV512G_TOSHIBA_106S10CJT9LM
+diskbyid2: nvme-KXG60ZNV512G_TOSHIBA_106S10COT9LM
