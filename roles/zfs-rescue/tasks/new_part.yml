@@ -1,0 +1,95 @@
+---
+# tasks file for zfs-rescue
+
+- name: Remove all partitions from disk
+  parted:
+    device: /dev/"{{ drive1 }}"
+    number: '{{ item.num }}'
+    state: absent
+  loop: '{{ drive1_info.partitions }}'
+
+- name: Remove all partitions from disk
+  parted:
+    device: /dev/"{{ drive2 }}"
+    number: '{{ item.num }}'
+    state: absent
+  loop: '{{ drive2_info.partitions }}'
+
+- name: Create a BIOS partition
+  parted:
+    device: "{{ item }}"
+    number: '1'
+    state: present
+    part_start: 23.5KiB
+    part_end: 1047KiB
+    label: gpt
+    flags: bios_grub
+  loop:
+    - /dev/"{{ drive1 }}"
+    - /dev/"{{ drive2 }}"
+
+- name: Create a BOOT partition
+  parted:
+    device: "{{ item }}"
+    number: '2'
+    state: present
+    part_start: 1048KiB
+    part_end: 1025MiB
+    label: gpt
+  loop:
+    - /dev/"{{ drive1 }}"
+    - /dev/"{{ drive2 }}"
+
+- name: Create a ROOT partition
+  parted:
+    device: "{{ item }}"
+    number: '3'
+    state: present
+    part_start: 1026MiB
+    part_end: 100%
+    label: gpt
+  loop:
+    - /dev/"{{ drive1 }}"
+    - /dev/"{{ drive2 }}"
+
+- name: Create BOOT zpool
+  shell: |
+    zpool create -f \
+    -o ashift=12 -d \
+    -o feature@async_destroy=enabled \
+    -o feature@bookmarks=enabled \
+    -o feature@embedded_data=enabled \
+    -o feature@empty_bpobj=enabled \
+    -o feature@enabled_txg=enabled \
+    -o feature@extensible_dataset=enabled \
+    -o feature@filesystem_limits=enabled \
+    -o feature@hole_birth=enabled \
+    -o feature@large_blocks=enabled \
+    -o feature@lz4_compress=enabled \
+    -o feature@spacemap_histogram=enabled \
+    -o feature@zpool_checkpoint=enabled \
+    -O acltype=posixacl -O canmount=off -O compression=lz4 \
+    -O devices=off -O normalization=formD -O relatime=on -O xattr=sa \
+    -O mountpoint=/boot -R /mnt \
+    bpool mirror \ 
+    /dev/disk/by-id/"{{ diskbyid1 }}"\-\part2 \
+    /dev/disk/by-id/"{{ diskbyid2 }}"\-\part2
+
+  args:
+    executable: /bin/bash
+
+
+- name: Create ROOT zpool
+  shell: |
+    zpool create -f \
+    -o ashift=12 \
+    -O acltype=posixacl -O canmount=off -O compression=lz4 \
+    -O dnodesize=auto -O normalization=formD -O relatime=on \
+    -O xattr=sa -O mountpoint=/ -R /mnt \
+    rpool mirror \ 
+    /dev/disk/by-id/"{{ diskbyid1 }}"\-\part3 \
+    /dev/disk/by-id/"{{ diskbyid2 }}"\-\part3
+    
+  args:
+    executable: /bin/bash
+    register: zfs_partitioned
