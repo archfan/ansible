@@ -47,7 +47,7 @@
   register: drive2_info
 
 - include_tasks: new_part.yml
-  when: not zfs_partitioned
+  when: format_zfs|bool
 
 - name: System Installation
   shell: |

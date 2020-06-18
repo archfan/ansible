@@ -92,4 +92,3 @@
     
   args:
     executable: /bin/bash
-    register: zfs_partitioned
