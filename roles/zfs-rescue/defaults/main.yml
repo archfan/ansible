@@ -7,3 +7,5 @@ drive1: nvme0n1
 drive2: nvme1n1
 diskbyid1: nvme-KXG60ZNV512G_TOSHIBA_106S10CJT9LM
 diskbyid2: nvme-KXG60ZNV512G_TOSHIBA_106S10COT9LM
+root_password: test1234
+#format_zfs: true

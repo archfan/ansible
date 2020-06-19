@@ -47,7 +47,14 @@
   register: drive2_info
 
 - include_tasks: new_part.yml
-  when: format_zfs|bool
+#  when: format_zfs is undefined or format_zfs|bool == true
+
+#- set_fact:
+#    format_zfs: false
+#    cacheable: yes
+
+#- debug:
+#    var: drive1_info
 
 - name: System Installation
   shell: |
@@ -70,10 +77,12 @@
     zfs create -o com.sun:auto-snapshot=false  rpool/tmp
     chmod 1777 /mnt/tmp
 
-    debootstrap buster /mnt --include=locales,dpkg-dev,grub-pc,openssh-server
+    debootstrap {{ osrelease }} /mnt
+    touch /tmp/system_installed
 
   args:
     executable: /bin/bash
+    creates: /tmp/system_installed
 
 - name: copy sources.list file
   template:
@@ -99,14 +108,6 @@
      group: root
      mode: '0644' # stat -c %a interfaces
 
-- name: copy zfs.conf
-  template:
-     src: files/zfs.conf
-     dest: /mnt/etc/dkms/zfs.conf
-     owner: root
-     group: root
-     mode: '0644' # stat -c %a interfaces
-
 - name: copy zfs-import-bpool.service
   template:
      src: files/zfs-import-bpool.service
@@ -114,6 +115,20 @@
      owner: root
      group: root
      mode: '0644' # stat -c %a interfaces
+
+
+- name: Mount and bind /dev, /sys, /proc
+  mount:
+    path: /mnt/{{ item }}
+    fstab: /mnt/etc/fstab
+    src: /{{ item }}
+    opts: rbind
+    state: mounted
+    fstype: none
+  loop:
+    - dev
+    - proc
+    - sys
 
 - name: enable en_US.UTF-8
   lineinfile:
@@ -127,29 +142,35 @@
     line: Europe/Berlin
     create: yes
 
-- name: Add a line to a file if the file does not exist, without passing regexp
+# ugly hack to trick ansible to run commands within a chroot environment
+- name: Chroot into new installation and install packages
+  command: "chroot /mnt /bin/bash -c \"apt update; DEBIAN_FRONTEND=noninteractive apt -y install locales; dpkg-reconfigure -f noninteractive locales tzdata; DEBIAN_FRONTEND=noninteractive apt -y install dpkg-dev linux-headers-amd64 linux-image-amd64; DEBIAN_FRONTEND=noninteractive apt install --yes zfs-initramfs grub-pc openssh-server; dpkg --purge os-prober; exit\""
+
+- name: Add GRUB_CMDLINE_LINUX
   lineinfile:
     path: /mnt/etc/default/grub
+    regexp: "GRUB_CMDLINE_LINUX=\"\""
     line: "GRUB_CMDLINE_LINUX=\"root=ZFS=rpool/ROOT/debian\""
 
-- name: chroot into the new system
-  shell: |
-    mount --rbind /dev  /mnt/dev
-    mount --rbind /proc /mnt/proc
-    mount --rbind /sys  /mnt/sys
-    chroot /mnt /usr/bin/env bash --login
-    ln -sf /proc/self/mounts /etc/mtab
-    apt update
+- name: copy zfs.conf
+  template:
+     src: files/zfs.conf
+     dest: /mnt/etc/dkms/zfs.conf
+     owner: root
+     group: root
+     mode: '0644' # stat -c %a interfaces
 
-    dpkg-reconfigure -f noninteractive locales
-    dpkg-reconfigure -f noninteractive tzdata
-    apt install --yes linux-headers-amd64 linux-image-amd64 zfs-initramfs
-    dpkg --purge os-prober
-    systemctl enable zfs-import-bpool.service
-    systemctl enable sshd
-    update-initramfs -c -k all
-    update-grub
-    grub-install /dev/"{{ drive1 }}"
-    grub-install /dev/"{{ drive2 }}"
-  args:
-    executable: /bin/bash
+# ugly hack to trick ansible to run commands within a chroot environment
+- name: chroot 2/4
+  command: "chroot /mnt /bin/bash -c \"systemctl enable zfs-import-bpool sshd; update-initramfs -c -k all; update-grub\""
+- name: chroot 3/4
+  command: "chroot /mnt /bin/bash -c \"grub-install /dev/{{ drive1 }}; grub-install /dev/{{ drive2 }}; mkdir /etc/zfs/zfs-list.cache; touch /etc/zfs/zfs-list.cache/{bpool,rpool}; ln -sf /usr/lib/zfs-linux/zed.d/history_event-zfs-list-cacher.sh /etc/zfs/zed.d; \"" 
+- name: chroot 4/4
+  command: "chroot /mnt /bin/bash -c \"zed; sleep 3 && pkill -9 zed; sed -Ei 's|/mnt/?|/|' /etc/zfs/zfs-list.cache/*; passwd {{ root_password }} \""
+
+- name: Unmount everything
+  shell: |
+    mount | grep -v zfs | tac | awk '/\/mnt/ {print $3}' | \
+    xargs -i{} umount -lf {}
+    zpool export -a
+    reboot
