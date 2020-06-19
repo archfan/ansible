@@ -1,0 +1,16 @@
+## /etc/network/interfaces
+# Loopback-Adapter
+auto lo
+iface lo inet loopback
+#
+# LAN interface
+auto eth0
+iface eth0 inet static
+  # Main IP address of the server
+  address {{ ip_address }}
+  # Netmask 255.255.255.255 (/32) independent from the
+  # real subnet size (e.g. /27)
+  netmask 255.255.255.255
+  # explicit host route to the gateway
+  gateway {{ gateway }}
+  pointopoint {{ gateway }}

@@ -8,4 +8,11 @@ drive2: nvme1n1
 diskbyid1: nvme-KXG60ZNV512G_TOSHIBA_106S10CJT9LM
 diskbyid2: nvme-KXG60ZNV512G_TOSHIBA_106S10COT9LM
 root_password: test1234
+ip_address: 95.217.199.30
+gateway: 95.217.199.1
+
 #format_zfs: true
+# to do
+# copy interfaces eth0 file
+# permit root login
+# add network configuration

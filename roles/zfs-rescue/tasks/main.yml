@@ -92,6 +92,14 @@
      group: root
      mode: '0644' # stat -c %a interfaces
 
+- name: copy interfaces file
+  template:
+     src: templates/interfaces.j2
+     dest: /mnt/etc/network/interfaces
+     owner: root
+     group: root
+     mode: '0644' # stat -c %a interfaces
+
 - name: copy backports.list file
   template:
      src: templates/backports.list.j2
@@ -115,7 +123,6 @@
      owner: root
      group: root
      mode: '0644' # stat -c %a interfaces
-
 
 - name: Mount and bind /dev, /sys, /proc
   mount:
@@ -150,7 +157,7 @@
   lineinfile:
     path: /mnt/etc/default/grub
     regexp: "GRUB_CMDLINE_LINUX=\"\""
-    line: "GRUB_CMDLINE_LINUX=\"root=ZFS=rpool/ROOT/debian\""
+    line: "GRUB_CMDLINE_LINUX=\"net.ifnames=0 root=ZFS=rpool/ROOT/debian\""
 
 - name: copy zfs.conf
   template:
@@ -166,7 +173,13 @@
 - name: chroot 3/4
   command: "chroot /mnt /bin/bash -c \"grub-install /dev/{{ drive1 }}; grub-install /dev/{{ drive2 }}; mkdir /etc/zfs/zfs-list.cache; touch /etc/zfs/zfs-list.cache/{bpool,rpool}; ln -sf /usr/lib/zfs-linux/zed.d/history_event-zfs-list-cacher.sh /etc/zfs/zed.d; \"" 
 - name: chroot 4/4
-  command: "chroot /mnt /bin/bash -c \"zed; sleep 3 && pkill -9 zed; sed -Ei 's|/mnt/?|/|' /etc/zfs/zfs-list.cache/*; passwd {{ root_password }} \""
+  command: "chroot /mnt /bin/bash -c \"zed; sleep 3 && pkill -9 zed; sed -Ei 's|/mnt/?|/|' /etc/zfs/zfs-list.cache/*; echo -e '{{ root_password }}\n{{ root_password }}' | passwd root \""
+
+- name: Allow root SSH access
+  lineinfile: dest=/mnt/etc/ssh/sshd_config
+              regexp="^PermitRootLogin"
+              line="PermitRootLogin yes"
+              state=present
 
 - name: Unmount everything
   shell: |
